@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import PrivateRoute from "./components/PrivateRoute";
 import Analytics from "./pages/Analytics";
+import Payment from "./pages/Payment";
 
 function App() {
     return (
@@ -22,6 +23,10 @@ function App() {
                             <Route path="/loans" element={<Loans />} />
                             <Route path="/profile" element={<Profile />} />
                             <Route path="/analytics" element={<Analytics />} />
+                            <Route
+                                path="/payment"
+                                element={<Payment />}
+                            ></Route>
                         </Route>
                     </Routes>
                 </div>
