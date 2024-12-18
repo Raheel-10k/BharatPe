@@ -69,4 +69,55 @@ router.get("/details-by-phone", async (req, res) => {
     }
 });
 
+// Add a search route for merchants
+router.post("/search", async (req, res) => {
+    const { query } = req.body; // Accept a search query from the frontend
+
+    if (!query) {
+        return res.status(400).json({ message: "Search query is required" });
+    }
+
+    try {
+        // Search for a merchant based on any of the fields: name, businessName, email, or phoneNumber
+        const merchant = await Merchant.findOne({
+            $or: [
+                { name: query },
+                { businessName: query },
+                { email: query },
+                { phoneNumber: query },
+            ],
+        });
+
+        if (!merchant) {
+            return res.status(404).json({ message: "Merchant not found" });
+        }
+
+        // Fetch associated account details
+        const accountDetails = await AccountDetails.findOne({
+            merchantId: merchant.merchantId,
+        });
+
+        if (!accountDetails) {
+            return res
+                .status(404)
+                .json({ message: "Account details not found" });
+        }
+
+        // Return the merchant's details along with account information
+        res.status(200).json({
+            name: merchant.name,
+            businessName: merchant.businessName,
+            phoneNumber: merchant.phoneNumber,
+            email: merchant.email,
+            businessAddress: merchant.businessAddress,
+            merchantId: merchant.merchantId,
+            qrCode: merchant.qrCode,
+            accountNumber: accountDetails.accountNumber,
+        });
+    } catch (error) {
+        console.error("Error during search:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 export default router;

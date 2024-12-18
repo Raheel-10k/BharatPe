@@ -59,4 +59,36 @@ router.post("/send", async (req, res) => {
     }
 });
 
+// GET: All Transactions (Made/Received) by User (based on phoneNumber)
+router.get("/allTransactions", async (req, res) => {
+    const { merchantId } = req.query; // Get merchantId from query parameters
+    //console.log("This", merchantId);
+
+    try {
+        // Find account details by merchantId
+        const account = await AccountDetails.findOne({ merchantId });
+        if (!account) {
+            return res
+                .status(400)
+                .json({ message: "Account not found for this merchantId" });
+        }
+
+        // Fetch all transactions related to this account (both sent and received)
+        const transactions = await Transaction.find({
+            $or: [{ from: account.merchantId }, { to: account.merchantId }],
+        });
+
+        if (transactions.length === 0) {
+            return res
+                .status(200)
+                .json({ message: "No transactions found for this user" });
+        }
+
+        res.status(200).json({ transactions });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 export default router;
