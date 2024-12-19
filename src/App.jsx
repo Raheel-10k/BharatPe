@@ -20,6 +20,7 @@ function App() {
                         <Route path="/register" element={<Register />} />
                         <Route element={<PrivateRoute />}>
                             <Route path="/" element={<Home />} />
+                            <Route path="/home" element={<Home />}></Route>
                             <Route path="/loans" element={<Loans />} />
                             <Route path="/profile" element={<Profile />} />
                             <Route path="/analytics" element={<Analytics />} />

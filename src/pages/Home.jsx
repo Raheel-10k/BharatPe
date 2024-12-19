@@ -17,7 +17,6 @@ function Home() {
 
     useEffect(() => {
         const phoneNumber = localStorage.getItem("phoneNumber");
-        console.log(phoneNumber);
 
         const fetchMerchantDetails = async () => {
             if (!phoneNumber) {
@@ -35,7 +34,7 @@ function Home() {
                     localStorage.setItem("merchantId", data.merchantId);
                     setMerchantId(data.merchantId);
                     setBalance(data.amount);
-                    fetchTransactions(data.merchantId); // Fetch transactions after setting merchant details
+                    fetchTransactions(data.merchantId);
                 } else {
                     const errorData = await response.json();
                     setError(
@@ -49,16 +48,13 @@ function Home() {
         };
 
         const fetchTransactions = async (merchantId) => {
-            const merchId = localStorage.getItem("merchantId");
-            console.log("This", merchId);
             try {
                 const response = await fetch(
-                    `http://localhost:5021/transaction/allTransactions?merchantId=${merchId}`
+                    `http://localhost:5021/transaction/allTransactions?merchantId=${merchantId}`
                 );
                 if (response.ok) {
                     const data = await response.json();
                     setTransactions(data.transactions); // Set fetched transactions
-                    //console.log(data.transactions);
                 } else {
                     const errorData = await response.json();
                     setError(
@@ -75,7 +71,6 @@ function Home() {
     }, []);
 
     const handleSearch = async () => {
-        console.log(searchQuery);
         try {
             const response = await fetch(
                 `http://localhost:5021/account/search`,
@@ -102,24 +97,20 @@ function Home() {
             setSearchResult(null);
         }
     };
-
     return (
         <div className="space-y-6">
-            {error && <div className="text-red-500">{error}</div>}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <BalanceCard balance={balance} />
-                <QRCodeCard merchantId={merchantId} />
-            </div>
+            {error && <div className="text-red-500 font-semibold">{error}</div>}
 
             {/* Search Bar */}
-            <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-2">Search User</h3>
-                <div className="flex space-x-4">
+            <div className="bg-gradient-to-r from-green-400 via-blue-500 to-orange-400 p-6 rounded-xl shadow-lg text-white">
+                <h3 className="text-xl font-bold mb-4 text-center">
+                    Search for Users
+                </h3>
+                <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
                     <select
                         value={searchField}
                         onChange={(e) => setSearchField(e.target.value)}
-                        className="border p-2 rounded"
+                        className="bg-white text-gray-700 border-none rounded-full px-4 py-2 shadow focus:outline-none focus:ring-2 focus:ring-green-400 transition"
                     >
                         <option value="phoneNumber">Phone Number</option>
                         <option value="name">Name</option>
@@ -131,15 +122,20 @@ function Home() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Enter search value"
-                        className="border p-2 rounded flex-grow"
+                        className="bg-white text-gray-700 border-none rounded-full px-6 py-2 shadow flex-grow focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                     />
                     <button
                         onClick={handleSearch}
-                        className="bg-blue-500 text-white px-4 py-2 rounded"
+                        className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2 rounded-full shadow transition focus:ring-2 focus:ring-green-400 focus:outline-none"
                     >
                         Search
                     </button>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <BalanceCard balance={balance} />
+                <QRCodeCard merchantId={merchantId} />
             </div>
 
             {/* Display Search Result */}
