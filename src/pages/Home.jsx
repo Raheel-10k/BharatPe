@@ -58,6 +58,7 @@ function Home() {
                 if (response.ok) {
                     const data = await response.json();
                     setTransactions(data.transactions); // Set fetched transactions
+                    //console.log(data.transactions);
                 } else {
                     const errorData = await response.json();
                     setError(

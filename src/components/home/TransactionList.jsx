@@ -49,8 +49,14 @@ function TransactionList({ transactions }) {
                                         ).toLocaleDateString()}
                                     </p>
                                 </div>
-                                <span className="text-green-500 font-medium">
-                                    {transaction.status === "sent"
+                                <span
+                                    className={`font-medium ${
+                                        transaction.TransactionType === "sent"
+                                            ? "text-red-500"
+                                            : "text-green-500"
+                                    }`}
+                                >
+                                    {transaction.TransactionType === "sent"
                                         ? "Sent"
                                         : "Received"}
                                 </span>
