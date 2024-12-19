@@ -62,7 +62,6 @@ router.post("/send", async (req, res) => {
 // GET: All Transactions (Made/Received) by User (based on phoneNumber)
 router.get("/allTransactions", async (req, res) => {
     const { merchantId } = req.query; // Get merchantId from query parameters
-    //console.log("This", merchantId);
 
     try {
         // Find account details by merchantId
@@ -84,7 +83,15 @@ router.get("/allTransactions", async (req, res) => {
                 .json({ message: "No transactions found for this user" });
         }
 
-        res.status(200).json({ transactions });
+        // Add TransactionType to each transaction
+        const enhancedTransactions = transactions.map((transaction) => ({
+            ...transaction._doc, // Spread the original transaction fields
+            TransactionType:
+                transaction.from === account.merchantId ? "sent" : "received",
+        }));
+        console.log(enhancedTransactions);
+
+        res.status(200).json({ transactions: enhancedTransactions });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Server error" });
