@@ -1,7 +1,7 @@
 // routes/transactionRoutes.js
-import express from "express";
-import Transaction from "../models/Transaction.js";
-import AccountDetails from "../models/AccountDetails.js";
+import express from 'express';
+import Transaction from '../models/Transaction.js';
+import AccountDetails from '../models/AccountDetails.js';
 
 const router = express.Router();
 
@@ -9,6 +9,11 @@ const router = express.Router();
 router.post("/send", async (req, res) => {
     const { fromMerchantId, toMerchantId, amount } = req.body;
     try {
+        // Validate amount
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ message: 'Invalid amount' });
+        }
+
         // Check if both merchants have accounts
         const fromAccount = await AccountDetails.findOne({
             merchantId: fromMerchantId,
@@ -19,13 +24,13 @@ router.post("/send", async (req, res) => {
 
         if (!fromAccount || !toAccount) {
             return res
-                .status(400)
-                .json({ message: "Both merchants must have account details" });
+                .status(404)
+                .json({ message: "One or both merchants not found" });
         }
 
         // Check if the sender has sufficient balance
         if (fromAccount.amount < amount) {
-            return res.status(400).json({ message: "Insufficient funds" });
+            return res.status(400).json({ message: 'Insufficient balance' });
         }
 
         // Create transaction
@@ -49,13 +54,9 @@ router.post("/send", async (req, res) => {
         transaction.status = "sent";
         await transaction.save();
 
-        res.status(200).json({
-            message: "Transaction successful",
-            transaction,
-        });
+        res.json({ message: 'Transaction successful' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -68,7 +69,7 @@ router.get("/allTransactions", async (req, res) => {
         const account = await AccountDetails.findOne({ merchantId });
         if (!account) {
             return res
-                .status(400)
+                .status(404)
                 .json({ message: "Account not found for this merchantId" });
         }
 
@@ -89,12 +90,48 @@ router.get("/allTransactions", async (req, res) => {
             TransactionType:
                 transaction.from === account.merchantId ? "sent" : "received",
         }));
-        console.log(enhancedTransactions);
 
-        res.status(200).json({ transactions: enhancedTransactions });
+        res.json({ transactions: enhancedTransactions });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: error.message });
+    }
+});
+
+router.get("/ourTransactions", async (req, res) => {
+    const { fromMerchantId, toMerchantId } = req.query; // Get merchant IDs from query parameters
+
+    try {
+        if (!fromMerchantId || !toMerchantId) {
+            return res.status(400).json({
+                message:
+                    "Both fromMerchantId and toMerchantId must be provided",
+            });
+        }
+
+        // Fetch all transactions where both merchant IDs are involved
+        const transactions = await Transaction.find({
+            $or: [
+                { from: fromMerchantId, to: toMerchantId },
+                { from: toMerchantId, to: fromMerchantId },
+            ],
+        });
+
+        if (transactions.length === 0) {
+            return res
+                .status(200)
+                .json({ message: "No transactions found between these users" });
+        }
+
+        // Add TransactionType to each transaction
+        const enhancedTransactions = transactions.map((transaction) => ({
+            ...transaction._doc, // Spread the original transaction fields
+            TransactionType:
+                transaction.from === fromMerchantId ? "sent" : "received",
+        }));
+
+        res.json({ transactions: enhancedTransactions });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 

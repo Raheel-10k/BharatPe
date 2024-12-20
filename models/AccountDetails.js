@@ -1,9 +1,33 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const accountDetailsSchema = new mongoose.Schema({
-    merchantId: { type: String, ref: "Merchant", required: true },
-    amount: { type: Number, default: 2000000 },
-    accountNumber: { type: String, unique: true },
+    merchantId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    phoneNumber: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    name: {
+        type: String,
+        required: true
+    },
+    amount: {
+        type: Number,
+        default: 0
+    },
+    accountNumber: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 accountDetailsSchema.pre("validate", function (next) {
@@ -16,5 +40,5 @@ accountDetailsSchema.pre("validate", function (next) {
     next();
 });
 
-const AccountDetails = mongoose.model("AccountDetails", accountDetailsSchema);
+const AccountDetails = mongoose.model('AccountDetails', accountDetailsSchema);
 export default AccountDetails;

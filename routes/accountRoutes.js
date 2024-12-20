@@ -31,92 +31,87 @@ router.post("/create", async (req, res) => {
     }
 });
 
-// GET: Fetch Account Details by Phone Number
-router.get("/details-by-phone", async (req, res) => {
-    const { phoneNumber } = req.query;
-
-    if (!phoneNumber) {
-        return res.status(400).json({ message: "Phone number is required" });
-    }
-
+// Get account details by phone number
+router.get('/details-by-phone', async (req, res) => {
     try {
-        // Find merchant by phone number
+        const { phoneNumber } = req.query;
+        if (!phoneNumber) {
+            return res.status(400).json({ message: 'Phone number is required' });
+        }
+
+        // First find the merchant
         const merchant = await Merchant.findOne({ phoneNumber });
         if (!merchant) {
-            return res.status(404).json({ message: "Merchant not found" });
+            return res.status(404).json({ message: 'Merchant not found' });
         }
 
-        // Find account details for the found merchant
-        const accountDetails = await AccountDetails.findOne({
-            merchantId: merchant.merchantId,
-        });
+        // Then get their account details using merchantId
+        const accountDetails = await AccountDetails.findOne({ merchantId: merchant.merchantId });
         if (!accountDetails) {
-            return res
-                .status(404)
-                .json({ message: "Account details not found" });
+            // If no account details exist, create them
+            const newAccountDetails = new AccountDetails({
+                merchantId: merchant.merchantId,
+                phoneNumber: merchant.phoneNumber,
+                name: merchant.name,
+                amount: 0,
+                accountNumber: Math.floor(100000000000 + Math.random() * 900000000000).toString()
+            });
+            await newAccountDetails.save();
+            
+            // Return the newly created account details
+            return res.json({
+                merchantId: merchant.merchantId,
+                name: merchant.name,
+                accountBalance: 0,
+                businessName: merchant.businessName,
+                email: merchant.email,
+                businessAddress: merchant.businessAddress,
+                phoneNumber: merchant.phoneNumber
+            });
         }
 
-        // Return merchant and account details
-        res.status(200).json({
-            message: "Account details fetched successfully",
+        res.json({
             merchantId: merchant.merchantId,
-            accountNumber: accountDetails.accountNumber,
-            amount: accountDetails.amount,
+            name: merchant.name,
+            accountBalance: accountDetails.amount,
+            businessName: merchant.businessName,
+            email: merchant.email,
+            businessAddress: merchant.businessAddress,
+            phoneNumber: merchant.phoneNumber
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server error" });
+        console.error('Error fetching account details:', error);
+        res.status(500).json({ message: 'Failed to fetch account details' });
     }
 });
 
-// Add a search route for merchants
+// Search merchants by name or phone
 router.post("/search", async (req, res) => {
-    const { query } = req.body; // Accept a search query from the frontend
-
-    if (!query) {
-        return res.status(400).json({ message: "Search query is required" });
-    }
-
+    const { query } = req.body;
     try {
-        // Search for a merchant based on any of the fields: name, businessName, email, or phoneNumber
-        const merchant = await Merchant.findOne({
+        const merchants = await Merchant.find({
             $or: [
-                { name: query },
-                { businessName: query },
-                { email: query },
-                { phoneNumber: query },
+                { name: { $regex: query, $options: "i" } },
+                { phoneNumber: { $regex: query, $options: "i" } },
             ],
         });
 
-        if (!merchant) {
-            return res.status(404).json({ message: "Merchant not found" });
-        }
+        const merchantsWithDetails = await Promise.all(
+            merchants.map(async (merchant) => {
+                const accountDetails = await AccountDetails.findOne({
+                    merchantId: merchant.merchantId
+                });
+                return {
+                    ...merchant.toObject(),
+                    accountBalance: accountDetails ? accountDetails.amount : 0,
+                };
+            })
+        );
 
-        // Fetch associated account details
-        const accountDetails = await AccountDetails.findOne({
-            merchantId: merchant.merchantId,
-        });
-
-        if (!accountDetails) {
-            return res
-                .status(404)
-                .json({ message: "Account details not found" });
-        }
-
-        // Return the merchant's details along with account information
-        res.status(200).json({
-            name: merchant.name,
-            businessName: merchant.businessName,
-            phoneNumber: merchant.phoneNumber,
-            email: merchant.email,
-            businessAddress: merchant.businessAddress,
-            merchantId: merchant.merchantId,
-            qrCode: merchant.qrCode,
-            accountNumber: accountDetails.accountNumber,
-        });
+        res.json(merchantsWithDetails);
     } catch (error) {
-        console.error("Error during search:", error);
-        res.status(500).json({ message: "Server error" });
+        console.error(error);
+        res.status(500).json({ message: "Error searching merchants" });
     }
 });
 

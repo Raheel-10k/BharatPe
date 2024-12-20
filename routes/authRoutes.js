@@ -1,50 +1,26 @@
-import express from "express";
-import Merchant from "../models/Merchant.js";
-import AccountDetails from "../models/AccountDetails.js";
-import jwt from "jsonwebtoken";
-import QRCode from "qrcode";
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import QRCode from 'qrcode';
+import Merchant from '../models/Merchant.js';
+import AccountDetails from '../models/AccountDetails.js';
 
 const router = express.Router();
 
-// Function to generate a unique account number
-const generateUniqueAccountNumber = async () => {
-    let isUnique = false;
-    let accountNumber;
-
-    while (!isUnique) {
-        accountNumber = Math.floor(
-            100000000000 + Math.random() * 900000000000
-        ).toString(); // Generate 12-digit number
-        const existingAccount = await AccountDetails.findOne({ accountNumber });
-        if (!existingAccount) {
-            isUnique = true; // Break the loop if no account with the same number exists
-        }
-    }
-
-    return accountNumber;
-};
-
-// POST: Register Merchant
-router.post("/register", async (req, res) => {
-    const {
-        name,
-        businessName,
-        phoneNumber,
-        email,
-        businessAddress,
-        password,
-    } = req.body;
-
+// Register new merchant
+router.post('/register', async (req, res) => {
     try {
-        // Check if businessName or email already exists
-        const existingMerchant = await Merchant.findOne({
-            $or: [{ businessName }, { email }],
-        });
+        const { name, businessName, phoneNumber, email, businessAddress, password } = req.body;
 
+        // Check if merchant already exists
+        const existingMerchant = await Merchant.findOne({ 
+            $or: [{ email }, { phoneNumber }]
+        });
         if (existingMerchant) {
-            return res
-                .status(400)
-                .json({ message: "Business name or email already exists" });
+            return res.status(400).json({ 
+                message: existingMerchant.email === email 
+                    ? 'Email already registered' 
+                    : 'Phone number already registered'
+            });
         }
 
         // Create new merchant
@@ -54,131 +30,193 @@ router.post("/register", async (req, res) => {
             phoneNumber,
             email,
             businessAddress,
-            password, // Password will be hashed automatically in the pre-save hook
+            password
         });
 
         await merchant.save();
 
-        // Generate a unique account number
-        const accountNumber = await generateUniqueAccountNumber();
-
-        // Create account details for the registered merchant
+        // Create account details for the merchant
         const accountDetails = new AccountDetails({
             merchantId: merchant.merchantId,
-            accountNumber,
+            phoneNumber: merchant.phoneNumber,
+            name: merchant.name,
+            amount: 0,
+            accountNumber: Math.floor(100000000000 + Math.random() * 900000000000).toString()
         });
 
         await accountDetails.save();
 
-        // Generate a QR code for the merchant containing the merchantId as base64 string
-        const qrCodeData = await QRCode.toDataURL(merchant.merchantId);
-
-        // Store the QR code as base64 string in the merchant document
-        merchant.qrCode = qrCodeData;
-        await merchant.save();
+        // Generate JWT token
+        const token = jwt.sign(
+            { merchantId: merchant.merchantId },
+            'your-secret-key',
+            { expiresIn: '24h' }
+        );
 
         res.status(201).json({
-            message: "Merchant registered successfully",
-            merchantId: merchant.merchantId,
-            accountNumber: accountDetails.accountNumber,
-            qrCodeUrl: merchant.qrCode, // Provide the base64-encoded QR code in the response
+            message: 'Registration successful',
+            token,
+            phoneNumber: merchant.phoneNumber, 
+            merchant: {
+                merchantId: merchant.merchantId,
+                name: merchant.name,
+                phoneNumber: merchant.phoneNumber,
+                businessName: merchant.businessName,
+                email: merchant.email,
+                businessAddress: merchant.businessAddress
+            }
         });
     } catch (error) {
-        console.error("Error during registration:", error);
-        res.status(500).json({ message: "Server error" });
+        console.error('Error during registration:', error);
+        res.status(500).json({ message: error.message });
     }
 });
 
-// POST: Login Merchant
-router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-
+// Login merchant using email and password
+router.post('/login', async (req, res) => {
     try {
+        const { email, password } = req.body;
+        console.log('Login attempt:', { email });
+
         // Find merchant by email
         const merchant = await Merchant.findOne({ email });
         if (!merchant) {
-            return res.status(400).json({ message: "Invalid email" });
+            return res.status(401).json({ message: 'Invalid email or password' });
         }
 
-        // Validate password
-        const isMatch = await merchant.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid credentials" });
+        // Verify password
+        const isValidPassword = await merchant.comparePassword(password);
+        if (!isValidPassword) {
+            return res.status(401).json({ message: 'Invalid email or password' });
         }
+
+        // Get account details
+        const accountDetails = await AccountDetails.findOne({ merchantId: merchant.merchantId });
 
         // Generate JWT token
         const token = jwt.sign(
             { merchantId: merchant.merchantId },
-            process.env.JWT_SECRET,
-            { expiresIn: "1h" }
+            'your-secret-key',
+            { expiresIn: '24h' }
         );
 
-        res.status(200).json({ message: "Login successful", token });
+        res.json({
+            message: 'Login successful',
+            token,
+            phoneNumber: merchant.phoneNumber, 
+            merchant: {
+                merchantId: merchant.merchantId,
+                name: merchant.name,
+                phoneNumber: merchant.phoneNumber,
+                businessName: merchant.businessName,
+                email: merchant.email,
+                businessAddress: merchant.businessAddress,
+                accountBalance: accountDetails ? accountDetails.amount : 0
+            }
+        });
     } catch (error) {
-        console.error("Error during login:", error);
-        res.status(500).json({ message: "Server error" });
+        console.error('Error during login:', error);
+        res.status(500).json({ message: 'Login failed: ' + error.message });
     }
 });
 
-// GET: Fetch QR Code by Merchant ID
-router.get("/qr/:merchantId", async (req, res) => {
-    const { merchantId } = req.params;
-
+// Get QR code by merchantId
+router.get('/qr/:merchantId', async (req, res) => {
     try {
-        // Fetch the merchant by merchantId
+        const { merchantId } = req.params;
+        
+        // Find merchant
         const merchant = await Merchant.findOne({ merchantId });
         if (!merchant) {
-            return res.status(404).json({ message: "Merchant not found" });
+            return res.status(404).json({ message: 'Merchant not found' });
         }
 
-        // If QR code is available as base64
-        return res.status(200).json({ qrCode: merchant.qrCode });
+        // Generate QR code
+        const qrData = {
+            merchantId: merchant.merchantId,
+            name: merchant.name,
+            businessName: merchant.businessName
+        };
+        
+        const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrData));
+        
+        res.json({ qrCode: qrCodeDataUrl });
     } catch (error) {
-        console.error("Error fetching QR code:", error);
-        return res.status(500).json({ message: "Server error" });
+        console.error('Error generating QR code:', error);
+        res.status(500).json({ message: 'Failed to generate QR code' });
     }
 });
 
-// POST: Get all user information by phone number
-router.post("/info", async (req, res) => {
-    const { phoneNumber } = req.body;
-
-    if (!phoneNumber) {
-        return res.status(400).json({ message: "Phone number is required" });
-    }
-
+// Get merchant details by phone number
+router.get('/merchant-details', async (req, res) => {
     try {
-        // Find the merchant by phone number
+        const { phoneNumber } = req.query;
+        if (!phoneNumber) {
+            return res.status(400).json({ message: 'Phone number is required' });
+        }
+
         const merchant = await Merchant.findOne({ phoneNumber });
         if (!merchant) {
-            return res.status(404).json({ message: "Merchant not found" });
+            return res.status(404).json({ message: 'Merchant not found' });
         }
 
-        // Fetch account details associated with the merchant
-        const accountDetails = await AccountDetails.findOne({
+        const accountDetails = await AccountDetails.findOne({ merchantId: merchant.merchantId });
+
+        res.json({
             merchantId: merchant.merchantId,
-        });
-
-        if (!accountDetails) {
-            return res
-                .status(404)
-                .json({ message: "Account details not found" });
-        }
-
-        // Return the user information
-        res.status(200).json({
             name: merchant.name,
-            businessName: merchant.businessName,
             phoneNumber: merchant.phoneNumber,
+            businessName: merchant.businessName,
             email: merchant.email,
             businessAddress: merchant.businessAddress,
-            merchantId: merchant.merchantId,
-            qrCode: merchant.qrCode,
-            accountNumber: accountDetails.accountNumber,
+            accountBalance: accountDetails ? accountDetails.amount : 0
         });
     } catch (error) {
-        console.error("Error fetching user information:", error);
-        res.status(500).json({ message: "Server error" });
+        console.error('Error fetching merchant details:', error);
+        res.status(500).json({ message: 'Failed to fetch merchant details' });
+    }
+});
+
+// Get merchant profile info
+router.post('/info', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ message: 'No token provided' });
+        }
+
+        // Verify token
+        jwt.verify(token, 'your-secret-key', async (err, decoded) => {
+            if (err) {
+                return res.status(401).json({ message: 'Invalid or expired token' });
+            }
+
+            const { merchantId } = decoded;
+
+            // Find merchant
+            const merchant = await Merchant.findOne({ merchantId });
+            if (!merchant) {
+                return res.status(404).json({ message: 'Merchant not found' });
+            }
+
+            // Get account details
+            const accountDetails = await AccountDetails.findOne({ merchantId });
+
+            res.json({
+                merchantId: merchant.merchantId,
+                name: merchant.name,
+                phoneNumber: merchant.phoneNumber,
+                businessName: merchant.businessName,
+                email: merchant.email,
+                businessAddress: merchant.businessAddress,
+                accountBalance: accountDetails ? accountDetails.amount : 0
+            });
+        });
+    } catch (error) {
+        console.error('Error fetching profile:', error);
+        res.status(500).json({ message: 'Failed to fetch profile' });
     }
 });
 
