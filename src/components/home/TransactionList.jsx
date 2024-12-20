@@ -1,19 +1,24 @@
 import { useState, useEffect } from "react";
 
-function TransactionList({ transactions }) {
-    const [searchQuery, setSearchQuery] = useState(""); // State for search query
-    const [filteredTransactions, setFilteredTransactions] =
-        useState(transactions);
+function TransactionList({ transactions = [] }) {  
+    const [searchQuery, setSearchQuery] = useState(""); 
+    const [filteredTransactions, setFilteredTransactions] = useState([]);  
 
     // Filter transactions based on the search query
     useEffect(() => {
+        if (!Array.isArray(transactions)) return;  
+        
         const filtered = transactions.filter(
             (transaction) =>
-                transaction.amount.toString().includes(searchQuery) ||
-                transaction.timestamp.includes(searchQuery)
+                transaction?.amount?.toString()?.includes(searchQuery) ||
+                transaction?.timestamp?.includes(searchQuery)
         );
         setFilteredTransactions(filtered);
     }, [searchQuery, transactions]);
+
+    if (!Array.isArray(transactions)) {
+        return <div className="p-4">Loading transactions...</div>;
+    }
 
     return (
         <div className="bg-white rounded-lg shadow">
@@ -33,7 +38,9 @@ function TransactionList({ transactions }) {
                     Recent Transactions
                 </h2>
                 <div className="space-y-4">
-                    {filteredTransactions.length > 0 ? (
+                    {filteredTransactions.length === 0 ? (
+                        <p>No transactions found.</p>
+                    ) : (
                         filteredTransactions.map((transaction) => (
                             <div
                                 key={transaction._id}
@@ -62,8 +69,6 @@ function TransactionList({ transactions }) {
                                 </span>
                             </div>
                         ))
-                    ) : (
-                        <p>No transactions found.</p>
                     )}
                 </div>
             </div>
